@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        /* Estilos anteriores mantidos */
+        .container {
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(15, 30px);
+            grid-template-rows: repeat(15, 30px);
+            gap: 1px;
+            background: #333;
+            padding: 1px;
+            margin-bottom: 20px;
+            border: 1px solid #333;
+        }
+        .cell {
+            width: 30px;
+            height: 30px;
+            transition: background-color 0.3s;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 16px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: #fff;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #f0f0f0;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .stats {
+            margin-top: 20px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .video-preview {
+            margin-top: 20px;
+            display: none;
+        }
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(15, 15px);
+            grid-template-rows: repeat(15, 15px);
+            gap: 1px;
+            background: #333;
+            padding: 1px;
+            margin: 5px;
+            border: 1px solid #333;
+        }
+        .video-cell {
+            width: 15px;
+            height: 15px;
+        }
+        .frame-counter {
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        #exportCanvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="grid" id="grid"></div>
+        <div class="controls">
+            <button onclick="generateNextFrame()">Gerar Próximo Frame</button>
+            <button onclick="toggleAutoPlay()" id="autoPlayBtn">Iniciar Automático</button>
+            <button onclick="saveProgress()">Salvar Progresso</button>
+            <button onclick="generateVideo()" id="videoBtn">Gerar Vídeo (20 frames)</button>
+            <button onclick="exportVideo()" id="exportBtn" disabled>Exportar Vídeo</button>
+            <input type="file" id="loadFile" accept=".json" onchange="loadProgress(event)" />
+        </div>
+        <div class="stats">
+            <div>Frame atual: <span id="currentFrame">0</span></div>
+            <div>Geração: <span id="generation">0</span></div>
+            <div>Sequências de vídeo: <span id="sequences">0</span></div>
+        </div>
+        <div id="videoPreview" class="video-preview">
+            <h3>Prévia do Vídeo</h3>
+            <div class="frame-counter">Frame: <span id="videoFrame">1</span>/20</div>
+            <div id="videoGrid" class="video-grid"></div>
+        </div>
+        <canvas id="exportCanvas" width="450" height="450"></canvas>
+    </div>
+
+    <script>
+        let frameCount = 0;
+        let isAutoPlaying = false;
+        let autoPlayInterval;
+        let frameHistory = [];
+        let videoSequences = [];
+        let currentVideoFrames = [];
+        let videoPlayInterval;
+        let mediaRecorder;
+        let recordedChunks = [];
+        
+        // Funções anteriores mantidas
+        function initGrid() {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            for (let i = 0; i < 225; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                grid.appendChild(cell);
+            }
+            updateCells();
+            initVideoGrid();
+        }
+
+        function initVideoGrid() {
+            const videoGrid = document.getElementById('videoGrid');
+            videoGrid.innerHTML = '';
+            for (let i = 0; i < 225; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'video-cell';
+                videoGrid.appendChild(cell);
+            }
+        }
+
+        function generateNextFrame() {
+            frameCount++;
+            updateCells();
+            updateStats();
+            saveFrameToHistory();
+        }
+
+        function updateCells() {
+            const cells = document.querySelectorAll('.cell');
+            const colors = [];
+            cells.forEach(cell => {
+                const hue = Math.random() * 360;
+                const saturation = Math.random() * 100;
+                const lightness = Math.random() * 100;
+                const opacity = Math.random() * 0.5 + 0.5;
+                const color = `hsla(${hue}, ${saturation}%, ${lightness}%, ${opacity})`;
+                cell.style.backgroundColor = color;
+                colors.push(color);
+            });
+            return colors;
+        }
+
+        function toggleAutoPlay() {
+            isAutoPlaying = !isAutoPlaying;
+            const btn = document.getElementById('autoPlayBtn');
+            if (isAutoPlaying) {
+                btn.textContent = 'Parar Automático';
+                autoPlayInterval = setInterval(generateNextFrame, 1000);
+            } else {
+                btn.textContent = 'Iniciar Automático';
+                clearInterval(autoPlayInterval);
+            }
+        }
+
+        function generateVideo() {
+            if (videoPlayInterval) {
+                clearInterval(videoPlayInterval);
+            }
+            
+            currentVideoFrames = [];
+            for (let i = 0; i < 20; i++) {
+                const colors = [];
+                for (let j = 0; j < 225; j++) {
+                    const hue = Math.random() * 360;
+                    const saturation = Math.random() * 100;
+                    const lightness = Math.random() * 100;
+                    const opacity = Math.random() * 0.5 + 0.5;
+                    colors.push(`hsla(${hue}, ${saturation}%, ${lightness}%, ${opacity})`);
+                }
+                currentVideoFrames.push(colors);
+            }
+            
+            videoSequences.push(currentVideoFrames);
+            document.getElementById('sequences').textContent = videoSequences.length;
+            document.getElementById('videoPreview').style.display = 'block';
+            document.getElementById('exportBtn').disabled = false;
+            playVideoPreview();
+        }
+
+        function playVideoPreview() {
+            let currentFrame = 0;
+            const videoCells = document.querySelectorAll('.video-cell');
+            
+            function updateVideoFrame() {
+                const frameColors = currentVideoFrames[currentFrame];
+                videoCells.forEach((cell, index) => {
+                    cell.style.backgroundColor = frameColors[index];
+                });
+                document.getElementById('videoFrame').textContent = currentFrame + 1;
+                currentFrame++;
+                
+                // Para após completar os 20 frames
+                if (currentFrame >= 20) {
+                    clearInterval(videoPlayInterval);
+                    // Desabilita o botão de exportar após mostrar todos os frames
+                    document.getElementById('videoBtn').disabled = false;
+                }
+            }
+            
+            // Reseta e inicia novo intervalo
+            if (videoPlayInterval) {
+                clearInterval(videoPlayInterval);
+            }
+            document.getElementById('videoBtn').disabled = true;
+            currentFrame = 0;
+            updateVideoFrame();
+            videoPlayInterval = setInterval(updateVideoFrame, 1000);
+        }
+
+        // Função de exportação mantida
+        async function exportVideo() {
+            const canvas = document.getElementById('exportCanvas');
+            const ctx = canvas.getContext('2d');
+            const stream = canvas.captureStream(1);
+            
+            mediaRecorder = new MediaRecorder(stream, {
+                mimeType: 'video/webm;codecs=vp9'
+            });
+            
+            recordedChunks = [];
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    recordedChunks.push(e.data);
+                }
+            };
+            
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `grid-video-${Date.now()}.webm`;
+                a.click();
+            };
+            
+            mediaRecorder.start();
+            
+            for (let frameIndex = 0; frameIndex < currentVideoFrames.length; frameIndex++) {
+                const frameColors = currentVideoFrames[frameIndex];
+                ctx.fillStyle = '#333';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                const cellSize = 28;
+                const gap = 2;
+                
+                for (let i = 0; i < 15; i++) {
+                    for (let j = 0; j < 15; j++) {
+                        const index = i * 15 + j;
+                        ctx.fillStyle = frameColors[index];
+                        ctx.fillRect(
+                            j * (cellSize + gap) + gap,
+                            i * (cellSize + gap) + gap,
+                            cellSize,
+                            cellSize
+                        );
+                    }
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            mediaRecorder.stop();
+        }
+
+        function saveProgress() {
+            const progress = {
+                frameCount,
+                frameHistory
+            };
+            
+            const blob = new Blob([JSON.stringify(progress)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `grid-progress-${frameCount}.json`;
+            a.click();
+        }
+
+        function loadProgress(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const progress = JSON.parse(e.target.result);
+                frameCount = progress.frameCount;
+                frameHistory = progress.frameHistory;
+                updateStats();
+            };
+            reader.readAsText(file);
+        }
+
+        function updateStats() {
+            document.getElementById('currentFrame').textContent = frameCount;
+            document.getElementById('generation').textContent = Math.floor(frameCount / 1000000);
+        }
+
+        initGrid();
+    </script>
+</body>
+</html>
