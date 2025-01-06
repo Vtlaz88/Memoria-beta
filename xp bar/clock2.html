@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Progress Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        .progress-bar {
+            background: #eee;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+            height: 30px;
+        }
+        .progress-bar-inner {
+            background: #8a2be2;
+            height: 100%;
+            text-align: center;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+        .saved-states {
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn-blue {
+            background: #007bff;
+            color: white;
+        }
+        .btn-red {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-green {
+            background: #28a745;
+            color: white;
+        }
+        .btn-purple {
+            background: #6f42c1;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1 id="current-time" class="text-3xl font-bold mb-4"></h1>
+
+    <div class="progress-bar">
+        <div id="progress-bar-inner" class="progress-bar-inner" style="width: 0%;">XP: 0/200</div>
+    </div>
+
+    <div id="details" class="bg-gray-100 p-4 rounded-lg mb-4">
+        <h3>Detalhes do Progresso:</h3>
+        <p id="game-name">Nome da Partida: Nova Partida</p>
+        <p id="current-level">Nível Atual: 1</p>
+        <p id="current-xp">XP Atual: 0</p>
+        <p id="xp-total">XP Total do Nível: 200</p>
+        <p id="xp-remaining">XP Faltando: 200</p>
+        <p id="progress-percentage">Progresso: 0%</p>
+        <p id="next-level">Próximo Nível: 2 (450 XP total)</p>
+    </div>
+
+    <div class="mb-4">
+        <p>Tempo Vivo: <span id="time-alive">0</span> segundos</p>
+    </div>
+
+    <div class="flex gap-2 mb-4">
+        <button id="pause-btn" class="btn-blue">Pausar</button>
+        <button id="reset-btn" class="btn-red">Resetar</button>
+        <button id="pip-btn" class="btn-purple">Abrir PiP</button>
+    </div>
+
+    <div class="mb-4">
+        <input id="save-input" type="text" placeholder="Nome do Save" class="border p-2 rounded mr-2">
+        <button id="save-btn" class="btn-green">Salvar</button>
+    </div>
+
+    <div id="saves" class="border rounded p-4">
+        <h3>Saves:</h3>
+        <div id="saves-list"></div>
+    </div>
+    <h1>Contador</h1>
+    <div id="counter">000</div>
+
+    <div class="controls">
+        <button id="start">Iniciar</button>
+        <button id="pause">Pausar</button>
+        <button id="reset">Resetar</button>
+        <button id="increment10">+10</button>
+        <button id="increment100">+100</button>
+        <button id="addDigit">+1 Casa</button>
+        <button id="addTwoDigits">+2 Casas</button>
+    </div>
+
+    <div class="set-counter">
+        <input type="text" id="startValue" placeholder="Valor inicial">
+        <button id="setCounter">Definir Valor</button>
+        <button id="countDown">Iniciar Contagem Regressiva</button>
+    </div>
+
+    <div class="save-state">
+        <input type="text" id="stateName" placeholder="Nome do estado">
+        <button id="saveState">Salvar Estado</button>
+    </div>
+
+    <div class="saved-states">
+        <h2>Estados Salvos</h2>
+        <ul id="savedStatesList"></ul>
+    </div>
+    <script>
+        let xp = 0;
+        let level = 1;
+        let maxXP = 200;
+        let timeAlive = 0;
+        let isPaused = false;
+        let currentSaveName = "Nova Partida";
+        let pipWindow = null;
+        const lastUpdate = Date.now();
+
+        const calculateMaxXP = (level) => 200 + (level - 1) * 250;
+
+        const updateUI = () => {
+            const percentage = (xp / maxXP) * 100;
+            document.getElementById('progress-bar-inner').style.width = percentage + '%';
+            document.getElementById('progress-bar-inner').textContent = `XP: ${Math.floor(xp)}/${maxXP}`;
+            document.getElementById('game-name').textContent = `Nome da Partida: ${currentSaveName}`;
+            document.getElementById('current-level').textContent = `Nível Atual: ${level}`;
+            document.getElementById('current-xp').textContent = `XP Atual: ${Math.floor(xp)}`;
+            document.getElementById('xp-total').textContent = `XP Total do Nível: ${maxXP}`;
+            document.getElementById('xp-remaining').textContent = `XP Faltando: ${Math.ceil(maxXP - xp)}`;
+            document.getElementById('progress-percentage').textContent = `Progresso: ${percentage.toFixed(2)}%`;
+            document.getElementById('next-level').textContent = `Próximo Nível: ${level + 1} (${calculateMaxXP(level + 1)} XP total)`;
+            document.getElementById('time-alive').textContent = Math.floor(timeAlive).toLocaleString();
+        };
+
+        const gameLoop = setInterval(() => {
+            if (!isPaused) {
+                timeAlive += 0.1;
+
+                let xpGain = 0.02; // 1 XP per 5 seconds
+                if (timeAlive % 20 < 0.1) xpGain += 5;
+                if (timeAlive % 60 < 0.1) xpGain += 15;
+                if (timeAlive % 3600 < 0.1) xpGain += 30;
+                if (timeAlive % 86400 < 0.1) xpGain += 200;
+
+                xp += xpGain;
+                if (xp >= maxXP) {
+                    xp -= maxXP;
+                    level++;
+                    maxXP = calculateMaxXP(level);
+                }
+                updateUI();
+            }
+        }, 100);
+
+        document.getElementById('pause-btn').onclick = () => {
+            isPaused = !isPaused;
+            document.getElementById('pause-btn').textContent = isPaused ? 'Continuar' : 'Pausar';
+        };
+
+        document.getElementById('reset-btn').onclick = () => {
+            xp = 0;
+            level = 1;
+            maxXP = 200;
+            timeAlive = 0;
+            currentSaveName = "Nova Partida";
+            updateUI();
+        };
+
+        document.getElementById('save-btn').onclick = () => {
+            const saveName = document.getElementById('save-input').value || `Save ${new Date().toLocaleString()}`;
+            const saves = JSON.parse(localStorage.getItem('saves') || '[]');
+            const saveData = { xp, level, maxXP, timeAlive, name: saveName };
+            const existingIndex = saves.findIndex(save => save.name === saveName);
+
+            if (existingIndex !== -1) {
+                saves[existingIndex] = saveData;
+            } else {
+                saves.push(saveData);
+            }
+
+            localStorage.setItem('saves', JSON.stringify(saves));
+            updateSaves();
+        };
+
+        const updateSaves = () => {
+            const saves = JSON.parse(localStorage.getItem('saves') || '[]');
+            const savesList = document.getElementById('saves-list');
+            savesList.innerHTML = '';
+            saves.forEach((save, index) => {
+                const saveDiv = document.createElement('div');
+                saveDiv.innerHTML = `
+                    <p><strong>${save.name}</strong></p>
+                    <p>Level ${save.level} - XP: ${Math.floor(save.xp)}/${save.maxXP}</p>
+                    <p>Tempo: ${Math.floor(save.timeAlive).toLocaleString()} segundos</p>
+                    <button onclick="loadSave(${index})">Abrir</button>
+                    <button onclick="deleteSave(${index})">Excluir</button>
+                `;
+                savesList.appendChild(saveDiv);
+            });
+        };
+
+        const loadSave = (index) => {
+            const saves = JSON.parse(localStorage.getItem('saves'));
+            const save = saves[index];
+            xp = save.xp;
+                       level = save.level;
+            maxXP = save.maxXP;
+            timeAlive = save.timeAlive;
+            currentSaveName = save.name;
+            updateUI();
+        };
+
+        const deleteSave = (index) => {
+            const saves = JSON.parse(localStorage.getItem('saves'));
+            saves.splice(index, 1);
+            localStorage.setItem('saves', JSON.stringify(saves));
+            updateSaves();
+        };
+
+        document.getElementById('pip-btn').onclick = () => {
+            if (pipWindow) {
+                pipWindow.close();
+                pipWindow = null;
+            } else {
+                const pipContent = `
+                    <html>
+                        <head>
+                            <title>Progress PiP</title>
+                            <style>
+                                body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 20px; }
+                                .progress-bar { background: #eee; border-radius: 10px; overflow: hidden; height: 30px; margin: 20px 0; }
+                                .progress-bar-inner { background: #8a2be2; height: 100%; text-align: center; color: white; display: flex; align-items: center; justify-content: center; }
+                            </style>
+                        </head>
+                        <body>
+                            <h1>Nível: ${level}</h1>
+                            <div class="progress-bar">
+                                <div class="progress-bar-inner" style="width: ${(xp / maxXP) * 100}%;">XP: ${Math.floor(xp)}/${maxXP}</div>
+                            </div>
+                            <p>XP Faltando: ${Math.ceil(maxXP - xp)}</p>
+                            <p>Tempo Vivo: ${Math.floor(timeAlive).toLocaleString()} segundos</p>
+                        </body>
+                    </html>`;
+                const blob = new Blob([pipContent], { type: 'text/html' });
+                pipWindow = window.open(URL.createObjectURL(blob), '_blank', 'width=300,height=300');
+            }
+        };
+
+        // Initial UI update
+        updateUI();
+        updateSaves();
+        let counter = 0;
+        let interval = null;
+        let isCountingDown = false;
+
+        const counterDisplay = document.getElementById('counter');
+        const startButton = document.getElementById('start');
+        const pauseButton = document.getElementById('pause');
+        const resetButton = document.getElementById('reset');
+        const increment10Button = document.getElementById('increment10');
+        const increment100Button = document.getElementById('increment100');
+        const addDigitButton = document.getElementById('addDigit');
+        const addTwoDigitsButton = document.getElementById('addTwoDigits');
+        const setCounterButton = document.getElementById('setCounter');
+        const countDownButton = document.getElementById('countDown');
+        const startValueInput = document.getElementById('startValue');
+        const saveStateButton = document.getElementById('saveState');
+        const stateNameInput = document.getElementById('stateName');
+        const savedStatesList = document.getElementById('savedStatesList');
+
+        function formatCounter(value) {
+            return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        }
+
+        function updateDisplay() {
+            counterDisplay.textContent = formatCounter(counter);
+        }
+
+        function startCounter() {
+            if (interval) return;
+            interval = setInterval(() => {
+                counter += isCountingDown ? -1 : 1;
+                updateDisplay();
+            }, 1000);
+        }
+
+        function pauseCounter() {
+            clearInterval(interval);
+            interval = null;
+        }
+
+        function resetCounter() {
+            pauseCounter();
+            counter = 0;
+            updateDisplay();
+        }
+
+        function saveState() {
+            const name = stateNameInput.value.trim();
+            if (!name) {
+                alert('Insira um nome para salvar o estado!');
+                return;
+            }
+            const savedStates = JSON.parse(localStorage.getItem('savedStates')) || {};
+            savedStates[name] = counter;
+            localStorage.setItem('savedStates', JSON.stringify(savedStates));
+            updateSavedStates();
+        }
+
+        function updateSavedStates() {
+            const savedStates = JSON.parse(localStorage.getItem('savedStates')) || {};
+            savedStatesList.innerHTML = '';
+            for (const [name, value] of Object.entries(savedStates)) {
+                const li = document.createElement('li');
+                li.textContent = `${name}: ${formatCounter(value)}`;
+
+                const startButton = document.createElement('button');
+                startButton.textContent = 'Iniciar';
+                startButton.onclick = () => {
+                    counter = value;
+                    updateDisplay();
+                    startCounter();
+                };
+                li.appendChild(startButton);
+
+                savedStatesList.appendChild(li);
+            }
+        }
+
+        startButton.onclick = startCounter;
+        pauseButton.onclick = pauseCounter;
+        resetButton.onclick = resetCounter;
+        increment10Button.onclick = () => {
+            counter += 10;
+            updateDisplay();
+        };
+        increment100Button.onclick = () => {
+            counter += 100;
+            updateDisplay();
+        };
+        addDigitButton.onclick = () => {
+            counter *= 10;
+            updateDisplay();
+        };
+        addTwoDigitsButton.onclick = () => {
+            counter *= 100;
+            updateDisplay();
+        };
+        setCounterButton.onclick = () => {
+            const value = parseInt(startValueInput.value, 10);
+            if (!isNaN(value)) {
+                counter = value;
+                updateDisplay();
+            } else {
+                alert('Insira um valor válido!');
+            }
+        };
+        countDownButton.onclick = () => {
+            isCountingDown = true;
+            startCounter();
+        };
+        saveStateButton.onclick = saveState;
+
+        updateDisplay();
+        updateSavedStates();
+    </script>
+</body>
+</html>
