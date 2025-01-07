@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        /* Previous styles remain the same */
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 40px; /* Increased height */
+            background-color: #eee;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+            margin: 20px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #8a2be2;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        .progress-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            color: rgb(3, 3, 3);
+            line-height: 40px; /* Matched to new height */
+            text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px; /* Increased gap */
+            font-size: 16px; /* Increased font size */
+        }
+        /* Rest of the styles remain the same */
+        .controls {
+            margin: 20px 0;
+        }
+        .controls button {
+            margin: 5px;
+            padding: 8px 16px;
+        }
+        .save-list {
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+        .save-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .xp-details {
+            margin: 20px 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+        .delete-btn {
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .delete-btn:hover {
+            background-color: #cc0000;
+        }
+        .divider {
+            color: white;
+            margin: 0 8px; /* Increased margin */
+            font-weight: bold;
+            font-size: 18px; /* Increased divider size */
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+        .saved-states {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<!-- Rest of the code remains exactly the same -->
+<body>
+    <!-- Previous HTML and script remain exactly the same -->
+    <h1 id="clock">00:00:00</h1>
+    <div class="progress-bar">
+        <div class="progress-fill"></div>
+        <div class="progress-text">0/200 XP (0%) - Level 1</div>
+    </div>
+    <div class="xp-details">
+        <h3>Detalhes do Progresso:</h3>
+        <div id="xpDetails"></div>
+    </div>
+    <div class="controls">
+        <button onclick="togglePause()">Pausar</button>
+        <button onclick="resetProgress()">Resetar</button>
+        <button onclick="saveProgress()">Salvar</button>
+    </div>
+    <div>
+        <input type="text" id="saveName" placeholder="Nome do Save">
+    </div>
+    <div>Tempo Vivo: <span id="timeAlive">0</span> segundos</div>
+    <div class="save-list">
+        <h3>Saves:</h3>
+        <div id="savesList"></div>
+    </div>
+    <h1>Contador</h1>
+    <div id="counter">000</div>
+
+    <div class="controls">
+        <button id="start">Iniciar</button>
+        <button id="pause">Pausar</button>
+        <button id="reset">Resetar</button>
+        <button id="increment10">+10</button>
+        <button id="increment100">+100</button>
+        <button id="addDigit">+1 Casa</button>
+        <button id="addTwoDigits">+2 Casas</button>
+    </div>
+
+    <div class="set-counter">
+        <input type="text" id="startValue" placeholder="Valor inicial">
+        <button id="setCounter">Definir Valor</button>
+        <button id="countDown">Iniciar Contagem Regressiva</button>
+    </div>
+
+    <div class="save-state">
+        <input type="text" id="stateName" placeholder="Nome do estado">
+        <button id="saveState">Salvar Estado</button>
+    </div>
+
+    <div class="saved-states">
+        <h2>Estados Salvos</h2>
+        <ul id="savedStatesList"></ul>
+    </div>
+
+    <!-- All previous script code remains exactly the same -->
+    <script>
+        let counter = 0;
+        let interval = null;
+        let isCountingDown = false;
+
+        const counterDisplay = document.getElementById('counter');
+        const startButton = document.getElementById('start');
+        const pauseButton = document.getElementById('pause');
+        const resetButton = document.getElementById('reset');
+        const increment10Button = document.getElementById('increment10');
+        const increment100Button = document.getElementById('increment100');
+        const addDigitButton = document.getElementById('addDigit');
+        const addTwoDigitsButton = document.getElementById('addTwoDigits');
+        const setCounterButton = document.getElementById('setCounter');
+        const countDownButton = document.getElementById('countDown');
+        const startValueInput = document.getElementById('startValue');
+        const saveStateButton = document.getElementById('saveState');
+        const stateNameInput = document.getElementById('stateName');
+        const savedStatesList = document.getElementById('savedStatesList');
+
+        function formatCounter(value) {
+            return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        }
+
+        function updateDisplay() {
+            counterDisplay.textContent = formatCounter(counter);
+        }
+
+        function startCounter() {
+            if (interval) return;
+            interval = setInterval(() => {
+                counter += isCountingDown ? -1 : 1;
+                updateDisplay();
+            }, 1000);
+        }
+
+        function pauseCounter() {
+            clearInterval(interval);
+            interval = null;
+        }
+
+        function resetCounter() {
+            pauseCounter();
+            counter = 0;
+            updateDisplay();
+        }
+
+        function saveState() {
+            const name = stateNameInput.value.trim();
+            if (!name) {
+                alert('Insira um nome para salvar o estado!');
+                return;
+            }
+            const savedStates = JSON.parse(localStorage.getItem('savedStates')) || {};
+            savedStates[name] = counter;
+            localStorage.setItem('savedStates', JSON.stringify(savedStates));
+            updateSavedStates();
+        }
+
+        function updateSavedStates() {
+            const savedStates = JSON.parse(localStorage.getItem('savedStates')) || {};
+            savedStatesList.innerHTML = '';
+            for (const [name, value] of Object.entries(savedStates)) {
+                const li = document.createElement('li');
+                li.textContent = `${name}: ${formatCounter(value)}`;
+
+                const startButton = document.createElement('button');
+                startButton.textContent = 'Iniciar';
+                startButton.onclick = () => {
+                    counter = value;
+                    updateDisplay();
+                    startCounter();
+                };
+                li.appendChild(startButton);
+
+                savedStatesList.appendChild(li);
+            }
+        }
+
+        startButton.onclick = startCounter;
+        pauseButton.onclick = pauseCounter;
+        resetButton.onclick = resetCounter;
+        increment10Button.onclick = () => {
+            counter += 10;
+            updateDisplay();
+        };
+        increment100Button.onclick = () => {
+            counter += 100;
+            updateDisplay();
+        };
+        addDigitButton.onclick = () => {
+            counter *= 10;
+            updateDisplay();
+        };
+        addTwoDigitsButton.onclick = () => {
+            counter *= 100;
+            updateDisplay();
+        };
+        setCounterButton.onclick = () => {
+            const value = parseInt(startValueInput.value, 10);
+            if (!isNaN(value)) {
+                counter = value;
+                updateDisplay();
+            } else {
+                alert('Insira um valor válido!');
+            }
+        };
+        countDownButton.onclick = () => {
+            isCountingDown = true;
+            startCounter();
+        };
+        saveStateButton.onclick = saveState;
+
+        updateDisplay();
+        updateSavedStates();
+        // All variables and functions remain the same
+        let xp = 0;
+        let level = 1;
+        let maxXP = 200;
+        let timeAlive = 0;
+        let isPaused = false;
+        let lastUpdate = Date.now();
+        let currentSaveName = "Nova Partida";
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').textContent = 
+                now.toLocaleTimeString();
+        }
+
+        function calculateMaxXP(level) {
+            return 200 + (level - 1) * 250;
+        }
+
+        function updateXPDetails() {
+            const xpDetails = document.getElementById('xpDetails');
+            const remainingXP = maxXP - xp;
+            const percentage = (xp / maxXP) * 100;
+            
+            xpDetails.innerHTML = `
+                <p><strong>Nome da Partida:</strong> ${currentSaveName}</p>
+                <p>Nível Atual: ${level}</p>
+                <p>XP Atual: ${Math.floor(xp)}</p>
+                <p>XP Total do Nível: ${maxXP}</p>
+                <p>XP Faltando: ${Math.ceil(remainingXP)}</p>
+                <p>Progresso: ${percentage.toFixed(2)}%</p>
+                <p>Próximo Nível: ${level + 1} (${maxXP + 250} XP total)</p>
+            `;
+        }
+
+        function updateProgress() {
+            if (isPaused) return;
+            
+            const now = Date.now();
+            const delta = (now - lastUpdate) / 1000;
+            lastUpdate = now;
+            
+            timeAlive += delta;
+            document.getElementById('timeAlive').textContent = 
+                Math.floor(timeAlive).toLocaleString();
+
+            xp += (delta * 0.2);
+            if (timeAlive % 20 < delta) xp += 5;
+            if (timeAlive % 60 < delta) xp += 15;
+            if (timeAlive % 3600 < delta) xp += 30;
+            if (timeAlive % 86400 < delta) xp += 200;
+            if (timeAlive % 2592000 < delta) xp += 250;
+            if (timeAlive % 31536000 < delta) xp += 500;
+
+            while (xp >= maxXP) {
+                xp -= maxXP;
+                level++;
+                maxXP = calculateMaxXP(level);
+            }
+
+            const progressBar = document.querySelector('.progress-fill');
+            const percentage = (xp / maxXP) * 100;
+            progressBar.style.width = percentage + '%';
+            
+            document.querySelector('.progress-text').innerHTML = `
+                <span>XP: ${Math.floor(xp)}/${maxXP}</span>
+                <span class="divider">|</span>
+                <span>${percentage.toFixed(1)}%</span>
+                <span class="divider">|</span>
+                <span>Level ${level}</span>
+            `;
+            
+            updateXPDetails();
+        }
+
+        // Rest of the functions remain exactly the same
+        function togglePause() {
+            isPaused = !isPaused;
+            if (!isPaused) lastUpdate = Date.now();
+        }
+
+        function resetProgress() {
+            xp = 0;
+            level = 1;
+            maxXP = 200;
+            timeAlive = 0;
+            currentSaveName = "Nova Partida";
+            updateProgress();
+        }
+
+        function saveProgress() {
+            const saveName = document.getElementById('saveName').value || 
+                'Save ' + new Date().toLocaleString();
+            currentSaveName = saveName;
+            const saveData = {
+                xp, level, maxXP, timeAlive,
+                date: new Date().toLocaleString(),
+                name: saveName
+            };
+            
+            let saves = JSON.parse(localStorage.getItem('saves') || '[]');
+            
+            const existingIndex = saves.findIndex(save => save.name === saveName);
+            
+            if (existingIndex !== -1) {
+                saves[existingIndex] = saveData;
+            } else {
+                saves.push(saveData);
+            }
+            
+            localStorage.setItem('saves', JSON.stringify(saves));
+            updateSavesList();
+            updateXPDetails();
+        }
+
+        function deleteSave(index) {
+            let saves = JSON.parse(localStorage.getItem('saves') || '[]');
+            saves.splice(index, 1);
+            localStorage.setItem('saves', JSON.stringify(saves));
+            updateSavesList();
+        }
+
+        function loadSave(index) {
+            const saves = JSON.parse(localStorage.getItem('saves') || '[]');
+            const save = saves[index];
+            if (save) {
+                xp = save.xp;
+                level = save.level;
+                maxXP = save.maxXP;
+                timeAlive = save.timeAlive;
+                currentSaveName = save.name;
+                updateProgress();
+            }
+        }
+
+        function updateSavesList() {
+            const savesList = document.getElementById('savesList');
+            const saves = JSON.parse(localStorage.getItem('saves') || '[]');
+            
+            savesList.innerHTML = saves.map((save, index) => `
+                <div class="save-entry">
+                    <strong>${save.name}</strong><br>
+                    Level ${save.level} - XP: ${Math.floor(save.xp)}/${save.maxXP} 
+                    (${((save.xp/save.maxXP)*100).toFixed(1)}%)<br>
+                    Tempo: ${Math.floor(save.timeAlive).toLocaleString()} segundos<br>
+                    <button onclick="loadSave(${index})">Abrir</button>
+                    <button class="delete-btn" onclick="deleteSave(${index})">Excluir</button>
+                </div>
+            `).join('');
+        }
+
+        setInterval(updateClock, 1000);
+        setInterval(updateProgress, 100);
+        updateSavesList();
+    </script>
+</body>
+</html>
